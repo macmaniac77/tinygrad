@@ -25,6 +25,7 @@ nav:
     - Layout: developer/layout.md
     - Speed: developer/speed.md
     - UOp: developer/uop.md
+    - TinyUOp Builder: developer/knime_uop_builder.md
     - Grouper:
       - developer/kernelize.md
     - Runtime:
