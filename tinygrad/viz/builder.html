@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TinyUOp Builder</title>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #08090e;
+      --panel: #0f1018;
+      --panel-alt: #12131d;
+      --border: #2b2d40;
+      --accent: #4a90e2;
+      --accent-soft: rgba(74, 144, 226, 0.18);
+      --text: #f0f0f5;
+      --text-soft: #a9a9bc;
+      --node-bg: #1b1c29;
+      --node-border: #454766;
+      --node-header: #26283b;
+      --shadow: rgba(0, 0, 0, 0.4);
+      font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 2px 6px var(--shadow);
+      z-index: 2;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 16px 0 0;
+    }
+
+    header button, header select, header input[type="file"] {
+      background: var(--node-header);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    header button:hover, header select:hover {
+      border-color: var(--accent);
+    }
+
+    header button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .app {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr) 320px;
+      grid-template-rows: 100%;
+      height: 100%;
+    }
+
+    .panel {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .panel:last-child {
+      border-right: none;
+      border-left: 1px solid var(--border);
+    }
+
+    .panel h2 {
+      font-size: 14px;
+      font-weight: 600;
+      padding: 16px;
+      margin: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .palette-search {
+      padding: 0 16px 12px;
+    }
+
+    .palette-search input {
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel-alt);
+      color: var(--text);
+    }
+
+    .palette-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0 8px 16px;
+    }
+
+    .palette-group {
+      padding: 8px;
+    }
+
+    .palette-group h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-soft);
+      margin: 0 0 6px 6px;
+    }
+
+    .palette-item {
+      background: var(--node-bg);
+      border: 1px solid var(--node-border);
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: grab;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .palette-item:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft);
+    }
+
+    .palette-item span {
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .canvas {
+      position: relative;
+      background: radial-gradient(circle at 50% 50%, rgba(74, 144, 226, 0.06), transparent 55%), var(--bg);
+      overflow: hidden;
+    }
+
+    .canvas svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .node {
+      position: absolute;
+      min-width: 160px;
+      background: var(--node-bg);
+      border: 1px solid var(--node-border);
+      border-radius: 12px;
+      box-shadow: 0 4px 12px var(--shadow);
+      color: var(--text);
+      cursor: default;
+      user-select: none;
+      transition: border 0.2s ease;
+    }
+
+    .node.selected {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft), 0 6px 18px rgba(0, 0, 0, 0.6);
+    }
+
+    .node-header {
+      padding: 10px 12px;
+      background: var(--node-header);
+      border-radius: 12px 12px 0 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      cursor: grab;
+    }
+
+    .node-type {
+      font-size: 13px;
+    }
+
+    .node-body {
+      padding: 10px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .ports {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .port-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .port {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    .port-circle {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: var(--panel-alt);
+      transition: border 0.2s ease, background 0.2s ease;
+    }
+
+    .port.output .port-circle {
+      border-color: #7bc67b;
+    }
+
+    .port.input .port-circle {
+      border-color: #c67bcc;
+    }
+
+    .port-label {
+      color: var(--text-soft);
+    }
+
+    .port.active .port-circle {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .inspector {
+      flex: 1;
+      padding: 16px 20px 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .inspector section h3 {
+      font-size: 13px;
+      margin: 0 0 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-soft);
+    }
+
+    .inspector label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .inspector input, .inspector textarea, .inspector select {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel-alt);
+      color: var(--text);
+      font-size: 13px;
+      resize: vertical;
+    }
+
+    .inspector textarea {
+      min-height: 110px;
+      font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+    }
+
+    .inspector-empty {
+      margin-top: 40px;
+      text-align: center;
+      color: var(--text-soft);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .message {
+      color: var(--text-soft);
+      font-size: 12px;
+      margin-left: auto;
+    }
+
+    .edge {
+      stroke: rgba(255, 255, 255, 0.65);
+      stroke-width: 2;
+      fill: none;
+    }
+
+    .edge-shadow {
+      stroke: rgba(8, 9, 14, 0.95);
+      stroke-width: 5;
+      fill: none;
+    }
+
+    .selection-box {
+      position: absolute;
+      border: 1px dashed var(--accent);
+      background: rgba(74, 144, 226, 0.1);
+      pointer-events: none;
+    }
+
+    .status-pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(74, 144, 226, 0.16);
+      border: 1px solid var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    footer {
+      padding: 10px 16px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    footer pre {
+      margin: 0;
+      font-family: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
+      background: var(--panel-alt);
+      border-radius: 6px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      flex: 1;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 96px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TinyUOp Builder</h1>
+    <button id="reset-graph-btn" title="Clear the canvas">New graph</button>
+    <label class="sr-only" for="template-select">Starter templates</label>
+    <select id="template-select" title="Choose a starter architecture"></select>
+    <button id="load-template-btn" title="Load the selected architecture">Load template</button>
+    <button id="save-template-btn" title="Save the current graph as a reusable template">Save template</button>
+    <button id="export-graph-btn" title="Export the workflow to JSON">Export JSON</button>
+    <label class="status-pill" id="selection-pill">No selection</label>
+    <span class="message" id="status-message">Drag nodes from the palette to begin.</span>
+  </header>
+  <div class="app">
+    <aside class="panel">
+      <h2>Palette</h2>
+      <div class="palette-search">
+        <input id="palette-search-input" type="search" placeholder="Search nodes (e.g. Conv, Grad)">
+      </div>
+      <div class="palette-list" id="palette-list"></div>
+    </aside>
+    <main class="canvas" id="canvas">
+      <svg id="edge-layer"></svg>
+    </main>
+    <aside class="panel">
+      <h2>Inspector</h2>
+      <div class="inspector" id="inspector"></div>
+    </aside>
+  </div>
+  <footer>
+    <span>Graph JSON preview</span>
+    <pre id="graph-preview">[]</pre>
+  </footer>
+  <script src="/js/builder.js" type="module"></script>
+</body>
+</html>
