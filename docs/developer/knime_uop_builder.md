@@ -56,4 +56,5 @@ This document captures the high-level specification for a KNIME extension that e
 - Prototype a **UOp JIT** node that wraps tinygrad's graph rewriting pipeline and exposes compile-time diagnostics inside KNIME.
 - Draft pytest-based fixtures to simulate KNIME execution contexts for standalone CI runs.
 - Exercise the **TinyUOp Builder GUI** (served from `python tinygrad/viz/serve.py` → `http://localhost:8000/builder` by default) to sketch RT-DETR style graphs, then iterate on the node palette to match real UOp coverage.
+- Preload the builder with reshape/broadcast/pooling primitives plus starter templates for ResNet-50, ViT-B/16, and UNet to cover common JAX-era architectures.
 - Coordinate with the documentation team to produce tutorials and screen recordings once the MVP nodes stabilize.

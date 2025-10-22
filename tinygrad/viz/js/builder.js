@@ -13,7 +13,41 @@ const NODE_LIBRARY = [
         { key: "padding", type: "text", default: "same" }
       ], description: "2D convolution" },
       { type: "UOpRelu", label: "ReLU", inputs: ["x"], outputs: ["out"], params: [], description: "ReLU activation" },
-      { type: "UOpLayerNorm", label: "LayerNorm", inputs: ["x"], outputs: ["out"], params: [{ key: "eps", type: "number", default: 1e-5 }], description: "Layer normalization" }
+      { type: "UOpLayerNorm", label: "LayerNorm", inputs: ["x"], outputs: ["out"], params: [{ key: "eps", type: "number", default: 1e-5 }], description: "Layer normalization" },
+      { type: "UOpReshape", label: "Reshape", inputs: ["x"], outputs: ["out"], params: [{ key: "shape", type: "text", default: "1,64,112,112" }], description: "Reshape tensor" },
+      { type: "UOpTranspose", label: "Transpose", inputs: ["x"], outputs: ["out"], params: [{ key: "perm", type: "text", default: "0,2,3,1" }], description: "Reorder tensor axes" },
+      { type: "UOpBroadcast", label: "Broadcast", inputs: ["x"], outputs: ["out"], params: [{ key: "shape", type: "text", default: "match" }], description: "Broadcast to new shape" },
+      { type: "UOpReduceSum", label: "Reduce Sum", inputs: ["x"], outputs: ["out"], params: [{ key: "axis", type: "text", default: "-1" }], description: "Sum over axes" },
+      { type: "UOpReduceMax", label: "Reduce Max", inputs: ["x"], outputs: ["out"], params: [{ key: "axis", type: "text", default: "-1" }], description: "Max over axes" },
+      { type: "UOpReduceMean", label: "Reduce Mean", inputs: ["x"], outputs: ["out"], params: [{ key: "axis", type: "text", default: "-1" }], description: "Mean over axes" }
+    ],
+  },
+  {
+    name: "Activations & Regularization",
+    items: [
+      { type: "UOpSoftmax", label: "Softmax", inputs: ["x"], outputs: ["out"], params: [{ key: "axis", type: "text", default: "-1" }], description: "Softmax activation" },
+      { type: "UOpSigmoid", label: "Sigmoid", inputs: ["x"], outputs: ["out"], params: [], description: "Sigmoid activation" },
+      { type: "UOpTanh", label: "Tanh", inputs: ["x"], outputs: ["out"], params: [], description: "Hyperbolic tangent activation" },
+      { type: "UOpGelu", label: "GELU", inputs: ["x"], outputs: ["out"], params: [], description: "Gaussian error linear unit" },
+      { type: "UOpSilu", label: "SiLU", inputs: ["x"], outputs: ["out"], params: [], description: "Sigmoid linear unit" },
+      { type: "UOpDropout", label: "Dropout", inputs: ["x"], outputs: ["out"], params: [{ key: "rate", type: "number", default: 0.1 }], description: "Drop activations for regularization" }
+    ],
+  },
+  {
+    name: "Spatial Ops",
+    items: [
+      { type: "UOpMaxPool2d", label: "MaxPool2D", inputs: ["x"], outputs: ["out"], params: [
+        { key: "kernel", type: "text", default: "2x2" },
+        { key: "stride", type: "text", default: "2" }
+      ], description: "Max pooling" },
+      { type: "UOpAvgPool2d", label: "AvgPool2D", inputs: ["x"], outputs: ["out"], params: [
+        { key: "kernel", type: "text", default: "2x2" },
+        { key: "stride", type: "text", default: "2" }
+      ], description: "Average pooling" },
+      { type: "UOpUpsample", label: "Upsample", inputs: ["x"], outputs: ["out"], params: [
+        { key: "scale", type: "text", default: "2" },
+        { key: "mode", type: "select", default: "nearest", options: ["nearest", "bilinear"] }
+      ], description: "Increase spatial resolution" }
     ],
   },
   {
@@ -25,7 +59,13 @@ const NODE_LIBRARY = [
       { type: "UOpGrad", label: "Grad", inputs: ["fn", "inputs"], outputs: ["grad"], params: [{ key: "mode", type: "select", default: "reverse", options: ["reverse", "forward"] }], description: "Gradient transform" },
       { type: "UOpJit", label: "JIT", inputs: ["fn"], outputs: ["compiled"], params: [{ key: "optimizations", type: "text", default: "fuse, simplify" }], description: "Graph rewrite/compile" },
       { type: "UOpVmap", label: "Vmap", inputs: ["fn", "axis"], outputs: ["batched"], params: [{ key: "axis", type: "number", default: 0 }], description: "Vectorize over axis" },
-      { type: "UOpPmap", label: "Pmap", inputs: ["fn", "devices"], outputs: ["distributed"], params: [{ key: "devices", type: "text", default: "cpu:0,cpu:1" }], description: "Parallel map" }
+      { type: "UOpPmap", label: "Pmap", inputs: ["fn", "devices"], outputs: ["distributed"], params: [{ key: "devices", type: "text", default: "cpu:0,cpu:1" }], description: "Parallel map" },
+      { type: "UOpCond", label: "Cond", inputs: ["pred", "true", "false"], outputs: ["out"], params: [], description: "Conditional branch" },
+      { type: "UOpScan", label: "Scan", inputs: ["fn", "init", "xs"], outputs: ["out"], params: [{ key: "axis", type: "number", default: 0 }], description: "Prefix scan transform" },
+      { type: "UOpWhile", label: "While", inputs: ["cond", "body", "state"], outputs: ["out"], params: [], description: "While loop" },
+      { type: "UOpAllReduce", label: "AllReduce", inputs: ["x"], outputs: ["out"], params: [{ key: "op", type: "select", default: "sum", options: ["sum", "mean", "max"] }], description: "Collective reduction" },
+      { type: "UOpAllGather", label: "AllGather", inputs: ["x"], outputs: ["out"], params: [], description: "Collective gather" },
+      { type: "UOpReduceScatter", label: "ReduceScatter", inputs: ["x"], outputs: ["out"], params: [{ key: "op", type: "select", default: "sum", options: ["sum", "mean"] }], description: "Reduce then scatter" }
     ],
   },
   {
@@ -35,9 +75,18 @@ const NODE_LIBRARY = [
       { type: "CSPBlock", label: "CSP Block", inputs: ["x"], outputs: ["out"], params: [{ key: "stages", type: "number", default: 3 }], description: "Cross Stage Partial block" },
       { type: "TransformerEncoder", label: "Transformer Encoder", inputs: ["x"], outputs: ["out"], params: [{ key: "heads", type: "number", default: 8 }, { key: "depth", type: "number", default: 6 }], description: "Multi-head attention stack" },
       { type: "DetectionHead", label: "Detection Head", inputs: ["features"], outputs: ["boxes", "scores"], params: [{ key: "classes", type: "number", default: 80 }], description: "Prediction heads" },
-      { type: "Loss", label: "Loss", inputs: ["pred", "target"], outputs: ["value"], params: [{ key: "type", type: "select", default: "focal", options: ["focal", "l1", "giou"] }], description: "Loss computation" },
+      { type: "Loss", label: "Loss", inputs: ["pred", "target"], outputs: ["value"], params: [{ key: "type", type: "select", default: "focal", options: ["focal", "l1", "giou", "cross_entropy", "dice"] }], description: "Loss computation" },
       { type: "Optimizer", label: "Optimizer", inputs: ["params", "grad"], outputs: ["updated"], params: [{ key: "kind", type: "select", default: "adamw", options: ["adamw", "sgd", "lion"] }, { key: "lr", type: "number", default: 1e-4 }], description: "Optimizer step" },
-      { type: "DataLoader", label: "Data Loader", inputs: [], outputs: ["batch"], params: [{ key: "source", type: "text", default: "coco/train" }, { key: "batch_size", type: "number", default: 4 }], description: "Dataset reader" }
+      { type: "DataLoader", label: "Data Loader", inputs: [], outputs: ["batch"], params: [{ key: "source", type: "text", default: "coco/train" }, { key: "batch_size", type: "number", default: 4 }], description: "Dataset reader" },
+      { type: "ResidualBlock", label: "Residual Block", inputs: ["x"], outputs: ["out"], params: [{ key: "filters", type: "number", default: 64 }, { key: "stride", type: "text", default: "1" }], description: "Residual bottleneck block" },
+      { type: "GlobalAvgPool", label: "Global Avg Pool", inputs: ["x"], outputs: ["out"], params: [], description: "Spatial average pooling" },
+      { type: "ClassificationHead", label: "Classification Head", inputs: ["features"], outputs: ["logits"], params: [{ key: "classes", type: "number", default: 1000 }], description: "Linear classifier" },
+      { type: "PatchEmbed", label: "Patch Embed", inputs: ["x"], outputs: ["tokens"], params: [{ key: "patch_size", type: "text", default: "16" }, { key: "embed_dim", type: "number", default: 768 }], description: "Image patches to tokens" },
+      { type: "PositionalEncoding", label: "Positional Encoding", inputs: ["tokens"], outputs: ["out"], params: [{ key: "mode", type: "select", default: "sinusoidal", options: ["sinusoidal", "learned"] }], description: "Add position information" },
+      { type: "MLPBlock", label: "MLP Block", inputs: ["x"], outputs: ["out"], params: [{ key: "hidden_dim", type: "number", default: 3072 }], description: "Transformer MLP" },
+      { type: "UNetEncoder", label: "UNet Encoder", inputs: ["x"], outputs: ["down", "skip"], params: [{ key: "depth", type: "number", default: 4 }], description: "Downsample pathway" },
+      { type: "UNetDecoder", label: "UNet Decoder", inputs: ["x", "skip"], outputs: ["out"], params: [{ key: "depth", type: "number", default: 4 }], description: "Upsample pathway" },
+      { type: "SegmentationHead", label: "Segmentation Head", inputs: ["features"], outputs: ["mask"], params: [{ key: "classes", type: "number", default: 21 }], description: "Pixel classification" }
     ],
   }
 ];
@@ -124,9 +173,93 @@ const TEMPLATE_LIBRARY = {
       ],
     },
   },
+  resnet50: {
+    name: "ResNet-50",
+    description: "ImageNet-style residual network baseline.",
+    template: {
+      nodes: [
+        { type: "DataLoader", position: { x: 120, y: 520 }, overrides: { label: "ImageNet Loader", params: { source: "imagenet/train", batch_size: 128 } } },
+        { type: "ConvBlock", position: { x: 360, y: 500 }, overrides: { label: "Stem", params: { filters: 64, kernel: "7x7" } } },
+        { type: "ResidualBlock", position: { x: 600, y: 500 }, overrides: { label: "Stage 1", params: { filters: 256, stride: "1" } } },
+        { type: "ResidualBlock", position: { x: 840, y: 500 }, overrides: { label: "Stage 2", params: { filters: 512, stride: "2" } } },
+        { type: "ResidualBlock", position: { x: 1080, y: 500 }, overrides: { label: "Stage 3", params: { filters: 1024, stride: "2" } } },
+        { type: "ResidualBlock", position: { x: 1320, y: 500 }, overrides: { label: "Stage 4", params: { filters: 2048, stride: "2" } } },
+        { type: "GlobalAvgPool", position: { x: 1560, y: 520 }, overrides: { label: "Global Average Pool" } },
+        { type: "ClassificationHead", position: { x: 1800, y: 500 }, overrides: { label: "Classifier", params: { classes: 1000 } } },
+        { type: "Loss", position: { x: 2040, y: 480 }, overrides: { label: "Cross Entropy", params: { type: "cross_entropy" } } },
+        { type: "Optimizer", position: { x: 2280, y: 500 }, overrides: { label: "SGD Momentum", params: { kind: "sgd", lr: 0.1 } } }
+      ],
+      edges: [
+        [0, "batch", 1, "x"],
+        [1, "out", 2, "x"],
+        [2, "out", 3, "x"],
+        [3, "out", 4, "x"],
+        [4, "out", 5, "x"],
+        [5, "out", 6, "x"],
+        [6, "out", 7, "features"],
+        [7, "logits", 8, "pred"],
+        [0, "batch", 8, "target"],
+        [8, "value", 9, "grad"],
+        [5, "out", 9, "params"]
+      ],
+    },
+  },
+  vit_b16: {
+    name: "ViT-B/16",
+    description: "Vision Transformer base model with patch embeddings.",
+    template: {
+      nodes: [
+        { type: "DataLoader", position: { x: 120, y: 680 }, overrides: { label: "ImageNet Loader", params: { source: "imagenet/train", batch_size: 256 } } },
+        { type: "PatchEmbed", position: { x: 360, y: 660 }, overrides: { label: "Patch Embed", params: { patch_size: "16", embed_dim: 768 } } },
+        { type: "PositionalEncoding", position: { x: 600, y: 660 }, overrides: { label: "Position Encode", params: { mode: "sinusoidal" } } },
+        { type: "TransformerEncoder", position: { x: 840, y: 660 }, overrides: { label: "Encoder", params: { heads: 12, depth: 12 } } },
+        { type: "MLPBlock", position: { x: 1080, y: 660 }, overrides: { label: "MLP Head", params: { hidden_dim: 3072 } } },
+        { type: "ClassificationHead", position: { x: 1320, y: 640 }, overrides: { label: "CLS Head", params: { classes: 1000 } } },
+        { type: "Loss", position: { x: 1560, y: 620 }, overrides: { label: "Cross Entropy", params: { type: "cross_entropy" } } },
+        { type: "Optimizer", position: { x: 1800, y: 640 }, overrides: { label: "AdamW", params: { kind: "adamw", lr: 5e-4 } } }
+      ],
+      edges: [
+        [0, "batch", 1, "x"],
+        [1, "tokens", 2, "tokens"],
+        [2, "out", 3, "x"],
+        [3, "out", 4, "x"],
+        [4, "out", 5, "features"],
+        [5, "logits", 6, "pred"],
+        [0, "batch", 6, "target"],
+        [6, "value", 7, "grad"],
+        [3, "out", 7, "params"]
+      ],
+    },
+  },
+  unet: {
+    name: "UNet",
+    description: "Encoder-decoder segmentation scaffold.",
+    template: {
+      nodes: [
+        { type: "DataLoader", position: { x: 120, y: 840 }, overrides: { label: "Segmentation Loader", params: { source: "segmentation/train", batch_size: 8 } } },
+        { type: "ConvBlock", position: { x: 360, y: 820 }, overrides: { label: "Input Stem", params: { filters: 32, kernel: "3x3" } } },
+        { type: "UNetEncoder", position: { x: 600, y: 820 }, overrides: { label: "Encoder", params: { depth: 4 } } },
+        { type: "UNetDecoder", position: { x: 840, y: 820 }, overrides: { label: "Decoder", params: { depth: 4 } } },
+        { type: "SegmentationHead", position: { x: 1080, y: 820 }, overrides: { label: "Seg Head", params: { classes: 21 } } },
+        { type: "Loss", position: { x: 1320, y: 800 }, overrides: { label: "Dice Loss", params: { type: "dice" } } },
+        { type: "Optimizer", position: { x: 1560, y: 820 }, overrides: { label: "AdamW", params: { kind: "adamw", lr: 1e-4 } } }
+      ],
+      edges: [
+        [0, "batch", 1, "x"],
+        [1, "out", 2, "x"],
+        [2, "down", 3, "x"],
+        [2, "skip", 3, "skip"],
+        [3, "out", 4, "features"],
+        [4, "mask", 5, "pred"],
+        [0, "batch", 5, "target"],
+        [5, "value", 6, "grad"],
+        [3, "out", 6, "params"]
+      ],
+    },
+  },
 };
 
-const TEMPLATE_ORDER = ["rtdetr", "yolov8", "rf_rtdr"];
+const TEMPLATE_ORDER = ["rtdetr", "yolov8", "rf_rtdr", "resnet50", "vit_b16", "unet"];
 const CUSTOM_TEMPLATES_KEY = "tinyuop.builder.customTemplates";
 
 const state = {
