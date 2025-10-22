@@ -199,7 +199,24 @@ if __name__ == "__main__":
   reloader_thread.start()
   print(f"*** started viz on {HOST}:{PORT}")
   print(colored(f"*** ready in {(time.perf_counter()-st)*1e3:4.2f}ms", "green"), flush=True)
-  if len(getenv("BROWSER", "")) > 0: webbrowser.open(f"{HOST}:{PORT}{'/profiler' if contexts is None else ''}")
+  browser_setting = getenv("BROWSER", "")
+  if len(browser_setting) > 0:
+    opened_direct = False
+    target_path = None
+    lower_setting = browser_setting.lower()
+    if lower_setting.startswith(("http://", "https://")):
+      webbrowser.open(browser_setting)
+      opened_direct = True
+    elif lower_setting in {"builder", "/builder"}:
+      target_path = "/builder"
+    elif lower_setting in {"profiler", "/profiler"}:
+      target_path = "/profiler"
+    elif lower_setting in {"index", "/", "home"}:
+      target_path = ""
+    if not opened_direct:
+      if target_path is None:
+        target_path = "/profiler" if contexts is None else ""
+      webbrowser.open(f"{HOST}:{PORT}{target_path}")
   try: server.serve_forever()
   except KeyboardInterrupt:
     print("*** viz is shutting down...")

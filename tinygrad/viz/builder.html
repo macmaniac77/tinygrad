@@ -28,6 +28,17 @@
       box-sizing: border-box;
     }
 
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+
     body {
       background: var(--bg);
       color: var(--text);
@@ -376,7 +387,9 @@
   <header>
     <h1>TinyUOp Builder</h1>
     <button id="reset-graph-btn" title="Clear the canvas">New graph</button>
-    <button id="load-example-btn" title="Load RT-DETR backbone template">Load RT-DETR template</button>
+    <label class="sr-only" for="template-select">Starter templates</label>
+    <select id="template-select" title="Choose a starter architecture"></select>
+    <button id="load-template-btn" title="Load the selected architecture">Load template</button>
     <button id="export-graph-btn" title="Export the workflow to JSON">Export JSON</button>
     <label class="status-pill" id="selection-pill">No selection</label>
     <span class="message" id="status-message">Drag nodes from the palette to begin.</span>

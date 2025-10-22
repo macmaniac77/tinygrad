@@ -42,29 +42,91 @@ const NODE_LIBRARY = [
   }
 ];
 
-const RT_DETR_TEMPLATE = {
-  nodes: [
-    { type: "DataLoader", position: { x: 120, y: 80 }, overrides: { label: "COCO Loader" } },
-    { type: "ConvBlock", position: { x: 360, y: 40 }, overrides: { label: "Stem Conv" } },
-    { type: "CSPBlock", position: { x: 600, y: 40 }, overrides: { label: "Stage 1" } },
-    { type: "CSPBlock", position: { x: 840, y: 40 }, overrides: { label: "Stage 2", params: { stages: 4 } } },
-    { type: "TransformerEncoder", position: { x: 1080, y: 60 }, overrides: { label: "Encoder" } },
-    { type: "DetectionHead", position: { x: 1320, y: 40 }, overrides: { label: "RT-DETR Head", params: { classes: 80 } } },
-    { type: "Loss", position: { x: 1560, y: 20 }, overrides: { label: "Detection Loss" } },
-    { type: "Optimizer", position: { x: 1800, y: 40 }, overrides: { label: "AdamW" } }
-  ],
-  edges: [
-    [0, "batch", 1, "x"],
-    [1, "out", 2, "x"],
-    [2, "out", 3, "x"],
-    [3, "out", 4, "x"],
-    [4, "out", 5, "features"],
-    [5, "boxes", 6, "pred"],
-    [5, "scores", 6, "pred"],
-    [6, "value", 7, "grad"],
-    [3, "out", 7, "params"]
-  ]
+const TEMPLATE_LIBRARY = {
+  rtdetr: {
+    name: "RT-DETR (Roboflow)",
+    description: "Transformer-based detector blueprint for Roboflow's RT-DETR.",
+    template: {
+      nodes: [
+        { type: "DataLoader", position: { x: 120, y: 80 }, overrides: { label: "COCO Loader" } },
+        { type: "ConvBlock", position: { x: 360, y: 40 }, overrides: { label: "Stem Conv" } },
+        { type: "CSPBlock", position: { x: 600, y: 40 }, overrides: { label: "Stage 1" } },
+        { type: "CSPBlock", position: { x: 840, y: 40 }, overrides: { label: "Stage 2", params: { stages: 4 } } },
+        { type: "TransformerEncoder", position: { x: 1080, y: 60 }, overrides: { label: "Encoder" } },
+        { type: "DetectionHead", position: { x: 1320, y: 40 }, overrides: { label: "RT-DETR Head", params: { classes: 80 } } },
+        { type: "Loss", position: { x: 1560, y: 20 }, overrides: { label: "Detection Loss" } },
+        { type: "Optimizer", position: { x: 1800, y: 40 }, overrides: { label: "AdamW" } }
+      ],
+      edges: [
+        [0, "batch", 1, "x"],
+        [1, "out", 2, "x"],
+        [2, "out", 3, "x"],
+        [3, "out", 4, "x"],
+        [4, "out", 5, "features"],
+        [5, "boxes", 6, "pred"],
+        [5, "scores", 6, "pred"],
+        [6, "value", 7, "grad"],
+        [3, "out", 7, "params"]
+      ],
+    },
+  },
+  yolov8: {
+    name: "YOLOv8", 
+    description: "One-shot detector inspired by examples/yolov8.py.",
+    template: {
+      nodes: [
+        { type: "DataLoader", position: { x: 120, y: 200 }, overrides: { label: "YOLO Loader", params: { source: "coco/train" } } },
+        { type: "ConvBlock", position: { x: 360, y: 160 }, overrides: { label: "Backbone Stem", params: { filters: 48, kernel: "3x3" } } },
+        { type: "CSPBlock", position: { x: 600, y: 160 }, overrides: { label: "CSP Stack", params: { stages: 4 } } },
+        { type: "ConvBlock", position: { x: 840, y: 200 }, overrides: { label: "Neck", params: { filters: 96, kernel: "1x1" } } },
+        { type: "DetectionHead", position: { x: 1080, y: 180 }, overrides: { label: "YOLO Head", params: { classes: 80 } } },
+        { type: "Loss", position: { x: 1320, y: 160 }, overrides: { label: "YOLO Loss", params: { type: "giou" } } },
+        { type: "Optimizer", position: { x: 1560, y: 180 }, overrides: { label: "SGD", params: { kind: "sgd", lr: 0.01 } } }
+      ],
+      edges: [
+        [0, "batch", 1, "x"],
+        [1, "out", 2, "x"],
+        [2, "out", 3, "x"],
+        [3, "out", 4, "features"],
+        [4, "boxes", 5, "pred"],
+        [4, "scores", 5, "pred"],
+        [0, "batch", 5, "target"],
+        [5, "value", 6, "grad"],
+        [3, "out", 6, "params"]
+      ],
+    },
+  },
+  rf_rtdr: {
+    name: "RF-RTDR",
+    description: "Roboflow real-time detector (RF-RTDR) quickstart layout.",
+    template: {
+      nodes: [
+        { type: "DataLoader", position: { x: 120, y: 360 }, overrides: { label: "RF-RTDR Loader", params: { source: "roboflow/train" } } },
+        { type: "ConvBlock", position: { x: 360, y: 320 }, overrides: { label: "Focus Stem", params: { filters: 64, kernel: "3x3" } } },
+        { type: "CSPBlock", position: { x: 600, y: 320 }, overrides: { label: "Backbone Stage", params: { stages: 5 } } },
+        { type: "TransformerEncoder", position: { x: 840, y: 340 }, overrides: { label: "Spatial Encoder", params: { heads: 6, depth: 3 } } },
+        { type: "TransformerEncoder", position: { x: 1080, y: 340 }, overrides: { label: "Hybrid Decoder", params: { heads: 4, depth: 2 } } },
+        { type: "DetectionHead", position: { x: 1320, y: 320 }, overrides: { label: "RF-RTDR Head", params: { classes: 80 } } },
+        { type: "Loss", position: { x: 1560, y: 300 }, overrides: { label: "Detection Loss", params: { type: "focal" } } },
+        { type: "Optimizer", position: { x: 1800, y: 320 }, overrides: { label: "AdamW", params: { kind: "adamw", lr: 5e-4 } } }
+      ],
+      edges: [
+        [0, "batch", 1, "x"],
+        [1, "out", 2, "x"],
+        [2, "out", 3, "x"],
+        [3, "out", 4, "x"],
+        [4, "out", 5, "features"],
+        [5, "boxes", 6, "pred"],
+        [5, "scores", 6, "pred"],
+        [0, "batch", 6, "target"],
+        [6, "value", 7, "grad"],
+        [4, "out", 7, "params"]
+      ],
+    },
+  },
 };
+
+const TEMPLATE_ORDER = ["rtdetr", "yolov8", "rf_rtdr"];
 
 const state = {
   nodes: [],
@@ -81,6 +143,8 @@ const canvasEl = document.getElementById("canvas");
 const searchEl = document.getElementById("palette-search-input");
 const selectionPillEl = document.getElementById("selection-pill");
 const statusMessageEl = document.getElementById("status-message");
+const templateSelectEl = document.getElementById("template-select");
+const loadTemplateBtn = document.getElementById("load-template-btn");
 
 function buildPalette(items) {
   paletteListEl.innerHTML = "";
@@ -108,6 +172,27 @@ function buildPalette(items) {
     }
     paletteListEl.appendChild(groupEl);
   }
+}
+
+function updateTemplateSelectTitle() {
+  if (!templateSelectEl) return;
+  const entry = TEMPLATE_LIBRARY[templateSelectEl.value];
+  templateSelectEl.title = entry?.description ?? "Choose a starter architecture";
+}
+
+function populateTemplateSelect() {
+  if (!templateSelectEl) return;
+  templateSelectEl.innerHTML = "";
+  for (const key of TEMPLATE_ORDER) {
+    const entry = TEMPLATE_LIBRARY[key];
+    if (!entry) continue;
+    const option = document.createElement("option");
+    option.value = key;
+    option.textContent = entry.name;
+    templateSelectEl.appendChild(option);
+  }
+  if (templateSelectEl.options.length > 0) templateSelectEl.value = TEMPLATE_ORDER[0];
+  updateTemplateSelectTitle();
 }
 
 function libraryLookup(type) {
@@ -445,8 +530,14 @@ function clearGraph() {
   renderGraph();
 }
 
-function loadTemplate(template) {
+function loadTemplate(templateKey) {
+  const entry = TEMPLATE_LIBRARY[templateKey];
+  if (!entry) {
+    statusMessageEl.textContent = "Template not found";
+    return;
+  }
   clearGraph();
+  const template = entry.template;
   for (const item of template.nodes) {
     const node = addNode(item.type, item.position, item.overrides ?? {});
     if (item.overrides?.params) {
@@ -465,7 +556,11 @@ function loadTemplate(template) {
     }
   }
   renderGraph();
-  statusMessageEl.textContent = "Loaded RT-DETR template";
+  if (templateSelectEl) {
+    templateSelectEl.value = templateKey;
+    updateTemplateSelectTitle();
+  }
+  statusMessageEl.textContent = `Loaded ${entry.name} template`;
 }
 
 function exportGraph() {
@@ -524,7 +619,17 @@ document.getElementById("reset-graph-btn").addEventListener("click", () => {
 
 document.getElementById("export-graph-btn").addEventListener("click", exportGraph);
 
-document.getElementById("load-example-btn").addEventListener("click", () => loadTemplate(RT_DETR_TEMPLATE));
+if (templateSelectEl && loadTemplateBtn) {
+  templateSelectEl.addEventListener("change", updateTemplateSelectTitle);
+  loadTemplateBtn.addEventListener("click", () => {
+    if (!templateSelectEl.value) {
+      statusMessageEl.textContent = "Select a template to load.";
+      return;
+    }
+    loadTemplate(templateSelectEl.value);
+  });
+  populateTemplateSelect();
+}
 
 buildPalette("");
 renderInspector();
