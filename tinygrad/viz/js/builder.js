@@ -31,7 +31,7 @@ const NODE_LIBRARY = [
   {
     name: "Model Blocks",
     items: [
-      { type: "ConvBlock", label: "Conv Block", inputs: ["x"], outputs: ["out"], params: [{ key: "filters", type: "number", default: 64 }, { key: "kernel", type: "text", default: "3x3" }], description: "Conv → BN → ReLU" },
+      { type: "ConvBlock", label: "Conv Block", inputs: ["x"], outputs: ["out"], params: [{ key: "filters", type: "number", default: 64 }, { key: "kernel", type: "text", default: "3x3" }], description: "Conv -> BN -> ReLU" },
       { type: "CSPBlock", label: "CSP Block", inputs: ["x"], outputs: ["out"], params: [{ key: "stages", type: "number", default: 3 }], description: "Cross Stage Partial block" },
       { type: "TransformerEncoder", label: "Transformer Encoder", inputs: ["x"], outputs: ["out"], params: [{ key: "heads", type: "number", default: 8 }, { key: "depth", type: "number", default: 6 }], description: "Multi-head attention stack" },
       { type: "DetectionHead", label: "Detection Head", inputs: ["features"], outputs: ["boxes", "scores"], params: [{ key: "classes", type: "number", default: 80 }], description: "Prediction heads" },
@@ -127,6 +127,7 @@ const TEMPLATE_LIBRARY = {
 };
 
 const TEMPLATE_ORDER = ["rtdetr", "yolov8", "rf_rtdr"];
+const CUSTOM_TEMPLATES_KEY = "tinyuop.builder.customTemplates";
 
 const state = {
   nodes: [],
@@ -135,6 +136,88 @@ const state = {
   connecting: null,
   nextId: 1,
 };
+
+function slugify(value) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
+}
+
+function snapshotCurrentGraph() {
+  const indexById = new Map();
+  const nodes = state.nodes.map((node, index) => {
+    indexById.set(node.id, index);
+    const templateNode = {
+      type: node.type,
+      position: { x: node.position.x, y: node.position.y },
+    };
+    const def = libraryLookup(node.type);
+    const overrides = {};
+    if (!def || node.label !== def.label) overrides.label = node.label;
+    const paramOverrides = {};
+    if (node.params) {
+      if (def) {
+        for (const param of def.params) {
+          const defaultValue = param.default ?? "";
+          const currentValue = node.params[param.key];
+          if (currentValue !== undefined && currentValue !== defaultValue) {
+            paramOverrides[param.key] = currentValue;
+          }
+        }
+        for (const key of Object.keys(node.params)) {
+          if (!def.params.some((param) => param.key === key)) {
+            paramOverrides[key] = node.params[key];
+          }
+        }
+      } else {
+        Object.assign(paramOverrides, node.params);
+      }
+    }
+    if (Object.keys(paramOverrides).length) overrides.params = paramOverrides;
+    if (node.notes) overrides.notes = node.notes;
+    if (Object.keys(overrides).length) templateNode.overrides = overrides;
+    return templateNode;
+  });
+  const edges = state.edges
+    .map((edge) => {
+      const fromIdx = indexById.get(edge.from.node);
+      const toIdx = indexById.get(edge.to.node);
+      if (fromIdx == null || toIdx == null) return null;
+      return [fromIdx, edge.from.port, toIdx, edge.to.port];
+    })
+    .filter(Boolean);
+  return { nodes, edges };
+}
+
+function persistCustomTemplates() {
+  if (!window.localStorage) return;
+  const customEntries = TEMPLATE_ORDER.filter((key) => TEMPLATE_LIBRARY[key]?.custom).map((key) => ({
+    key,
+    data: TEMPLATE_LIBRARY[key],
+  }));
+  try {
+    window.localStorage.setItem(CUSTOM_TEMPLATES_KEY, JSON.stringify(customEntries));
+  } catch (err) {
+    console.warn("Unable to persist custom templates", err);
+  }
+}
+
+function loadCustomTemplates() {
+  if (!window.localStorage) return;
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_TEMPLATES_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return;
+    for (const entry of parsed) {
+      if (!entry || typeof entry !== "object") continue;
+      const { key, data } = entry;
+      if (!key || !data || !data.template) continue;
+      TEMPLATE_LIBRARY[key] = { ...data, custom: true };
+      if (!TEMPLATE_ORDER.includes(key)) TEMPLATE_ORDER.push(key);
+    }
+  } catch (err) {
+    console.warn("Unable to load custom templates", err);
+  }
+}
 
 const paletteListEl = document.getElementById("palette-list");
 const inspectorEl = document.getElementById("inspector");
@@ -145,6 +228,7 @@ const selectionPillEl = document.getElementById("selection-pill");
 const statusMessageEl = document.getElementById("status-message");
 const templateSelectEl = document.getElementById("template-select");
 const loadTemplateBtn = document.getElementById("load-template-btn");
+const saveTemplateBtn = document.getElementById("save-template-btn");
 
 function buildPalette(items) {
   paletteListEl.innerHTML = "";
@@ -182,6 +266,7 @@ function updateTemplateSelectTitle() {
 
 function populateTemplateSelect() {
   if (!templateSelectEl) return;
+  const previous = templateSelectEl.value;
   templateSelectEl.innerHTML = "";
   for (const key of TEMPLATE_ORDER) {
     const entry = TEMPLATE_LIBRARY[key];
@@ -191,7 +276,13 @@ function populateTemplateSelect() {
     option.textContent = entry.name;
     templateSelectEl.appendChild(option);
   }
-  if (templateSelectEl.options.length > 0) templateSelectEl.value = TEMPLATE_ORDER[0];
+  if (templateSelectEl.options.length === 0) {
+    templateSelectEl.value = "";
+  } else if (previous && TEMPLATE_LIBRARY[previous]) {
+    templateSelectEl.value = previous;
+  } else {
+    templateSelectEl.value = templateSelectEl.options[0].value;
+  }
   updateTemplateSelectTitle();
 }
 
@@ -218,6 +309,7 @@ function addNode(type, position, overrides = {}) {
     inputs: def.inputs,
     outputs: def.outputs,
     params,
+    notes: overrides.notes ?? "",
   };
   state.nodes.push(node);
   selectNode(id);
@@ -256,7 +348,7 @@ function addEdge(fromNodeId, fromPort, toNodeId, toPort) {
   });
   state.connecting = null;
   renderGraph();
-  statusMessageEl.textContent = `Connected ${fromNodeId}.${fromPort} → ${toNodeId}.${toPort}`;
+  statusMessageEl.textContent = `Connected ${fromNodeId}.${fromPort} -> ${toNodeId}.${toPort}`;
 }
 
 function detachPort(nodeId, portName) {
@@ -281,7 +373,7 @@ function renderGraph() {
     nodeEl.innerHTML = `
       <div class="node-header">
         <span class="node-type">${node.label}</span>
-        <button class="delete-node" title="Delete node">×</button>
+        <button class="delete-node" title="Delete node">x</button>
       </div>
       <div class="node-body">
         <div class="ports">
@@ -294,7 +386,7 @@ function renderGraph() {
         </div>
         <div>
           <span>Params:</span>
-          <span>${Object.keys(node.params).length ? Object.entries(node.params).map(([k, v]) => `${k}: ${v}`).join(", ") : "—"}</span>
+          <span>${Object.keys(node.params).length ? Object.entries(node.params).map(([k, v]) => `${k}: ${v}`).join(", ") : "--"}</span>
         </div>
       </div>
     `;
@@ -362,7 +454,7 @@ function renderGraph() {
   drawEdges(svg);
   updatePreview();
   if (state.connecting) {
-    statusMessageEl.textContent = `Connecting ${state.connecting.nodeId}.${state.connecting.portName} → select an input port.`;
+    statusMessageEl.textContent = `Connecting ${state.connecting.nodeId}.${state.connecting.portName} -> select an input port.`;
   } else if (state.nodes.length === 0) {
     statusMessageEl.textContent = "Drag nodes from the palette to begin.";
   }
@@ -543,6 +635,7 @@ function loadTemplate(templateKey) {
     if (item.overrides?.params) {
       node.params = { ...node.params, ...item.overrides.params };
     }
+    if (item.overrides?.notes) node.notes = item.overrides.notes;
   }
   for (const [fromIdx, fromPort, toIdx, toPort] of template.edges) {
     const fromNode = state.nodes[fromIdx];
@@ -619,6 +712,8 @@ document.getElementById("reset-graph-btn").addEventListener("click", () => {
 
 document.getElementById("export-graph-btn").addEventListener("click", exportGraph);
 
+loadCustomTemplates();
+
 if (templateSelectEl && loadTemplateBtn) {
   templateSelectEl.addEventListener("change", updateTemplateSelectTitle);
   loadTemplateBtn.addEventListener("click", () => {
@@ -629,6 +724,61 @@ if (templateSelectEl && loadTemplateBtn) {
     loadTemplate(templateSelectEl.value);
   });
   populateTemplateSelect();
+}
+
+if (saveTemplateBtn) {
+  saveTemplateBtn.addEventListener("click", () => {
+    if (state.nodes.length === 0) {
+      statusMessageEl.textContent = "Add nodes to the canvas before saving a template.";
+      return;
+    }
+    const nameInput = window.prompt("Template name", "Custom template");
+    if (!nameInput || !nameInput.trim()) {
+      statusMessageEl.textContent = "Template save canceled.";
+      return;
+    }
+    const name = nameInput.trim();
+    const slug = slugify(name);
+    if (!slug) {
+      statusMessageEl.textContent = "Template name must include letters or numbers.";
+      return;
+    }
+    const descriptionInput = window.prompt("Template description", "");
+    const description = descriptionInput != null ? descriptionInput.trim() : "";
+    const existing = TEMPLATE_LIBRARY[slug];
+    if (existing && !existing.custom) {
+      statusMessageEl.textContent = "Built-in templates cannot be replaced.";
+      return;
+    }
+    if (existing && existing.custom) {
+      const shouldReplace = window.confirm(`Replace the existing template named "${existing.name}"?`);
+      if (!shouldReplace) {
+        statusMessageEl.textContent = "Template save canceled.";
+        return;
+      }
+    }
+    const snapshot = snapshotCurrentGraph();
+    if (snapshot.nodes.length === 0) {
+      statusMessageEl.textContent = "Templates require at least one node.";
+      return;
+    }
+    TEMPLATE_LIBRARY[slug] = {
+      name,
+      description: description || "Custom TinyUOp graph",
+      template: snapshot,
+      custom: true,
+    };
+    if (!TEMPLATE_ORDER.includes(slug)) {
+      TEMPLATE_ORDER.push(slug);
+    }
+    persistCustomTemplates();
+    populateTemplateSelect();
+    if (templateSelectEl) {
+      templateSelectEl.value = slug;
+      updateTemplateSelectTitle();
+    }
+    statusMessageEl.textContent = `Saved ${name} template.`;
+  });
 }
 
 buildPalette("");
