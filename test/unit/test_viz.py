@@ -1,4 +1,4 @@
-import unittest, decimal, json, struct
+import unittest, decimal, json, struct, http.client, threading, contextlib
 from dataclasses import dataclass
 from typing import Generator
 
@@ -182,6 +182,64 @@ class TestViz(BaseTestViz):
     # embed const in the parent node when possible
     self.assertEqual(list(graphs[0]), [id(a), id(alu)])
     self.assertEqual(list(graphs[1]), [id(z)])
+
+# HTTP server level tests for the viz interface
+
+class TestVizServer(BaseTestViz):
+  def setUp(self):
+    super().setUp()
+    self._prev_trace = serve.trace
+    self._sentinel = object()
+    self._prev_ctxs = getattr(serve, "ctxs", self._sentinel)
+    self._prev_profile = getattr(serve, "profile_ret", self._sentinel)
+    serve.trace = RewriteTrace([], [], {})
+    serve.ctxs = []
+    serve.profile_ret = None
+
+  def tearDown(self):
+    serve.trace = self._prev_trace
+    if self._prev_ctxs is self._sentinel:
+      if hasattr(serve, "ctxs"): delattr(serve, "ctxs")
+    else:
+      serve.ctxs = self._prev_ctxs
+    if self._prev_profile is self._sentinel:
+      if hasattr(serve, "profile_ret"): delattr(serve, "profile_ret")
+    else:
+      serve.profile_ret = self._prev_profile
+    super().tearDown()
+
+  @contextlib.contextmanager
+  def running_server(self):
+    ready = threading.Event()
+    server = serve.TCPServerWithReuse(("127.0.0.1", 0), serve.Handler)
+    def serve_loop():
+      ready.set()
+      server.serve_forever()
+    thread = threading.Thread(target=serve_loop, daemon=True)
+    thread.start()
+    try:
+      self.assertTrue(ready.wait(timeout=1), "viz server failed to start")
+      yield server.server_address[1]
+    finally:
+      server.shutdown()
+      thread.join(timeout=1)
+      server.server_close()
+
+  def test_builder_route_serves_html(self):
+    with self.running_server() as port:
+      with contextlib.closing(http.client.HTTPConnection("127.0.0.1", port, timeout=5)) as conn:
+        conn.request("GET", "/builder")
+        resp = conn.getresponse()
+        body = resp.read()
+        self.assertEqual(resp.status, 200)
+        self.assertIn(b"<title>TinyUOp Builder</title>", body)
+      with contextlib.closing(http.client.HTTPConnection("127.0.0.1", port, timeout=5)) as conn:
+        conn.request("GET", "/js/builder.js")
+        resp = conn.getresponse()
+        script = resp.read()
+        self.assertEqual(resp.status, 200)
+        self.assertIn(b"const NODE_LIBRARY", script)
+        self.assertIn(b"TEMPLATE_LIBRARY", script)
 
 # VIZ displays nested graph_rewrites in a tree view
 
